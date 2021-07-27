@@ -47,7 +47,7 @@ fn exhaustive() -> io::Result<()> {
 		assert_eq!(counter, buffer.len());
 
 		let mut counter = 0;
-		let args: String = winarg::null_seperated_list().collect();
+		let args: String = winarg::null_separated_list().collect();
 		for arg in args.split('\0') {
 			assert_eq!(arg, buffer[counter], "{:?}", cmdline);
 			counter += 1;

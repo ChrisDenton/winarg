@@ -15,15 +15,15 @@
 //!
 //! ```ini
 //! [dependencies.winarg]
-//! version = "0.1.0"
+//! version = "0.2.0"
 //! ```
 //!
 //! # Examples
 //!
-//! Creating a single `String` buffer to hold a list of arguments using [`null_seperated_list`]:
+//! Creating a single `String` buffer to hold a list of arguments using [`null_separated_list`]:
 //!
 //! ```
-//! let args: String = winarg::null_seperated_list().collect();
+//! let args: String = winarg::null_separated_list().collect();
 //! for arg in args.split('\0') {
 //!     println!("{}", arg);
 //! }
@@ -100,7 +100,7 @@ impl Token {
 /// A parsing iterator that produces [`Token`]s.
 ///
 /// Can be use to build your own higher level constructs. For example,
-/// it can be used in place of [`null_seperated_list_wide`] like so:
+/// it can be used in place of [`null_separated_list_wide`] like so:
 ///
 /// ```
 /// let args: Vec<u16> = winarg::Parser().map(|t| t.as_u16() ).collect();
@@ -146,22 +146,22 @@ pub fn Parser() -> Parser {
 
 /// A list of arguments separated by a `\0` character.
 /// ```
-/// let args: String = winarg::null_seperated_list().collect();
+/// let args: String = winarg::null_separated_list().collect();
 /// for arg in args.split('\0') {
 ///     println!("{}", arg);
 /// }
 /// ```
-pub fn null_seperated_list() -> impl Iterator<Item = char> + fmt::Debug + Clone {
-	scalars(null_seperated_list_wide())
+pub fn null_separated_list() -> impl Iterator<Item = char> + fmt::Debug + Clone {
+	scalars(null_separated_list_wide())
 }
 /// A list of UTF-16 encoded arguments, separated by a NULL.
 /// ```
-/// let args: Vec<u16> = winarg::null_seperated_list_wide().collect();
+/// let args: Vec<u16> = winarg::null_separated_list_wide().collect();
 /// for arg in args.split(|&w| w == 0) {
 ///     println!("{}", String::from_utf16_lossy(arg));
 /// }
 /// ```
-pub fn null_seperated_list_wide() -> impl Iterator<Item = u16> + fmt::Debug + Clone {
+pub fn null_separated_list_wide() -> impl Iterator<Item = u16> + fmt::Debug + Clone {
 	Parser().map(|t| t.as_u16())
 }
 

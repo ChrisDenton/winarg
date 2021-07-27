@@ -8,7 +8,7 @@ Add this to your `Cargo.toml` file
 
 ```ini
 [dependencies.winarg]
-version = "0.1.0"
+version = "0.2.0"
 ```
 
 # Example
