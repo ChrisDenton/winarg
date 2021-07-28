@@ -11,16 +11,17 @@ fn main() {
 	println!("Generating permutations (this may take awhile)...");
 	let mut buffer = Io::new("output.txt");
 	
-	// For the most part it should be sufficient to test a limited number of character.
+	// For the most part it should be sufficient to test a limited number of characters.
 	let input: Vec<u16> = "\\a\" \t".encode_utf16().collect();
 
 	// Uncomment this code if you don't mind waiting awhile.
-	// Sample space: All ASCII characters and the characters `£` and `�`.
-	//let input: Vec<u16> = "£�".encode_utf16().chain(0..=0x7f).collect();
+	// Sample space: All ASCII characters (except `\0` and `\n`) and the characters `£` and `�`.
+	//let input: Vec<u16> = "£�".encode_utf16().chain(1..=9).chain(0xB..=0x7f).collect();
 	
 	// Run `args.exe` with all the different combinations of characters as the
 	// command line.
-	// Adjust max_len to as needed.
+	// Adjust max_len as needed. Remember that the time taken increases exponentially. So adding
+	// even one to the max_len can greatly increase the time taken.
 	perms(&input, 6, move |perm| {
 		run_args(perm, &mut buffer);
 	});
