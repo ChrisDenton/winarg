@@ -1,18 +1,31 @@
 // Generates exhaustive test cases.
-// This was thrown together quite quickly to ensure the parser was correct/
+// This was thrown together quite quickly to ensure the parser was correct.
 // It could definitely be improved.
 
-// Note this only generates the
+// Note that this could be made multi-threaded for a big speed up.
+// Though it'll ideally only need to be generated once.
 
 use std::{ffi::c_void, fs::File, os::windows::io::AsRawHandle, ptr::null_mut as null};
 
 fn main() {
+	println!("Generating permutations (this may take awhile)...");
 	let mut buffer = Io::new("output.txt");
-	let input: Vec<u16> = "\\a\" \t".encode_utf16().collect(); // 一 \t
+	
+	// For the most part it should be sufficient to test a limited number of character.
+	let input: Vec<u16> = "\\a\" \t".encode_utf16().collect();
 
+	// Uncomment this code if you don't mind waiting awhile.
+	// Sample space: All ASCII characters and the characters `£` and `�`.
+	//let input: Vec<u16> = "£�".encode_utf16().chain(0..=0x7f).collect();
+	
+	// Run `args.exe` with all the different combinations of characters as the
+	// command line.
+	// Adjust max_len to as needed.
 	perms(&input, 6, move |perm| {
 		run_args(perm, &mut buffer);
 	});
+
+	println!("Done.")
 }
 
 // Enumerate all permutations with repetitions and for all output lengths from 1 to `max_len`.
@@ -85,7 +98,7 @@ fn run_args(args: &mut [u16], buffer: &mut Io) {
 	}
 }
 
-// Some thing to write the output to. Could be a pipe but in this case I'm saving directly to a file so it can be read.
+// Some thing to write the output to. Could be a pipe but in this case I'm saving directly to a file so it can be reused.
 struct Io {
 	write: usize,
 }
