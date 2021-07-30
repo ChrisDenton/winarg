@@ -16,6 +16,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Build winarg
+      working-directory: ./winarg
+      run: cargo build
     - name: Quick tests
       working-directory: ./winarg
       run: cargo test --verbose
+    - name: Build ./testing
+      working-directory: ./testing
+      run: cargo build
+    - name: Build exhaustive tests
+      working-directory: ./testing
+      run: cargo test --no-run
+      
