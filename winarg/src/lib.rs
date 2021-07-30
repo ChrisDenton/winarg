@@ -57,10 +57,8 @@ basically created separately then glued together. I've started joining them up
 more but there's still a lot artificial separation and indirection.
 */
 
-/*
-TODO: `\testing` has an exhaustive test for the parser but it'd be good
-to create some simpler tests here and do some more testing of the API.
-*/
+#[cfg(test)]
+mod tests;
 
 use core::{
 	char::{decode_utf16, REPLACEMENT_CHARACTER},
@@ -112,6 +110,15 @@ pub struct Parser {
 impl Parser {
 	pub fn from_env() -> Self {
 		Parser()
+	}
+	#[cfg(test)]
+	// For testing only.
+	// SAFETY: `lpwstr` must point to valid null terminated wide string.
+	// It must live at least as long as this struct and must not be modified.
+	unsafe fn from_ptr(lpwstr: *const u16) -> Self {
+		Self {
+			iter: ParseArgs::from_ptr(lpwstr),
+		}
 	}
 }
 impl Iterator for Parser {
@@ -485,6 +492,13 @@ impl ParseArgs {
 	/// argument.
 	fn from_env() -> Self {
 		Self::new(command_line(), true)
+	}
+	#[cfg(test)]
+	// For testing only.
+	// SAFETY: `lpwstr` must point to valid null terminated wide string.
+	// It must live at least as long as this struct and must not be modified.
+	unsafe fn from_ptr(lpwstr: *const u16) -> Self {
+		Self::new(WideIter::new(lpwstr), true)
 	}
 	fn new(arg: WideIter, is_arg0: bool) -> Self {
 		Self {
