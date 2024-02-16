@@ -9,6 +9,9 @@ keywords = ["windows", "cli"]
 categories = ["command-line-interface", "os::windows-apis"]
 repository = "https://github.com/ChrisDenton/winarg"
 
+[features]
+std = []
+
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-msvc"
 targets = []
