@@ -50,6 +50,10 @@
 //! // Collect the rest into a UTF-16 encoded vector.
 //! let args: Vec<u16> = parser.map(|t| t.as_u16() ).collect();
 //! ```
+//!
+//! # Features
+//!
+//! - `std`: Adds the error trait to [`NoNullError`].
 
 /*
 Implementation note: The public interface and the private implementation were
@@ -62,10 +66,13 @@ mod tests;
 
 use core::{
 	char::{decode_utf16, REPLACEMENT_CHARACTER},
-	fmt,
+	fmt::{self, Display},
+	marker::PhantomData,
 	num::NonZeroU16,
 	slice,
 };
+#[cfg(feature = "std")]
+extern crate std;
 
 const SPACE: u16 = b' ' as _;
 const TAB: u16 = b'\t' as _;
@@ -95,6 +102,17 @@ impl Token {
 		self == Token::NextArg
 	}
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct NoNullError;
+impl Display for NoNullError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("wide string is not null terminated")
+	}
+}
+#[cfg(feature = "std")]
+impl std::error::Error for NoNullError {}
+
 /// A parsing iterator that produces [`Token`]s.
 ///
 /// Can be use to build your own higher level constructs. For example,
@@ -104,24 +122,40 @@ impl Token {
 /// let args: Vec<u16> = winarg::Parser().map(|t| t.as_u16() ).collect();
 /// ```
 #[derive(Debug, Clone)]
-pub struct Parser {
-	iter: ParseArgs,
+pub struct Parser<'a> {
+	iter: ParseArgs<'a>,
 }
-impl Parser {
-	pub fn from_env() -> Self {
+impl Parser<'_> {
+	pub fn from_env() -> Parser<'static> {
 		Parser()
 	}
-	#[cfg(test)]
-	// For testing only.
-	// SAFETY: `lpwstr` must point to valid null terminated wide string.
-	// It must live at least as long as this struct and must not be modified.
+
+	/// Create from a slice.
+	///
+	/// Currently the `command_line` must be null terminated or else it's an error.
+	/// This may change in a future version.
+	///
+	/// While it is not an error for `command_line` to contain interior nulls,
+	/// it will result in the arguments being truncated at the first null.
+	pub fn from_slice(command_line: &[u16]) -> Result<Parser<'_>, NoNullError> {
+		if command_line.last() == Some(&0) {
+			// We've ensure that the &[u16] is null terminated.
+			// NOTE: it may still contain interior nulls.
+			// This is memory safe even though it's logically wrong.
+			unsafe { Ok(Parser::from_ptr(command_line.as_ptr())) }
+		} else {
+			Err(NoNullError)
+		}
+	}
+	/// SAFETY: `lpwstr` must point to valid null terminated wide string.
+	/// It must live at least as long as this struct and must not be modified.
 	unsafe fn from_ptr(lpwstr: *const u16) -> Self {
 		Self {
 			iter: ParseArgs::from_ptr(lpwstr),
 		}
 	}
 }
-impl Iterator for Parser {
+impl Iterator for Parser<'_> {
 	type Item = Token;
 	fn next(&mut self) -> Option<Self::Item> {
 		self.iter
@@ -145,7 +179,7 @@ impl Iterator for Parser {
 
 #[allow(nonstandard_style)]
 #[doc(hidden)]
-pub fn Parser() -> Parser {
+pub fn Parser() -> Parser<'static> {
 	Parser {
 		iter: ParseArgs::from_env(),
 	}
@@ -185,11 +219,11 @@ pub fn null_separated_list_wide() -> impl Iterator<Item = u16> + fmt::Debug + Cl
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Argument {
-	arg: WideIter,
+pub struct Argument<'a> {
+	arg: WideIter<'a>,
 	is_arg0: bool,
 }
-impl Argument {
+impl<'a> Argument<'a> {
 	/// Iterates scalar values. Isolated surrogates will be replaced with
 	/// the replacement character (`�`).
 	///
@@ -199,7 +233,7 @@ impl Argument {
 	///     println!("{}", arg);
 	/// }
 	/// ```
-	pub fn scalars(&self) -> impl Iterator<Item = char> + fmt::Debug + Clone {
+	pub fn scalars(&self) -> impl Iterator<Item = char> + fmt::Debug + Clone + 'a {
 		scalars(self.utf16_units())
 	}
 	/// Iterates code points. These are similar to scalar values except that
@@ -216,7 +250,7 @@ impl Argument {
 	///     println!("{}", arg);
 	/// }
 	/// ```
-	pub fn code_points(&self) -> impl Iterator<Item = u32> + fmt::Debug + Clone {
+	pub fn code_points(&self) -> impl Iterator<Item = u32> + fmt::Debug + Clone + 'a {
 		code_points(self.utf16_units())
 	}
 
@@ -232,7 +266,7 @@ impl Argument {
 	///     println!("{:?}", arg);
 	/// }
 	/// ```
-	pub fn utf16_units(&self) -> impl Iterator<Item = u16> + fmt::Debug + Clone {
+	pub fn utf16_units(&self) -> impl Iterator<Item = u16> + fmt::Debug + Clone + 'a {
 		ParseArgs::new(self.arg, self.is_arg0)
 	}
 
@@ -263,7 +297,7 @@ impl Argument {
 		self.utf16_units().eq(other)
 	}
 }
-impl fmt::Debug for Argument {
+impl fmt::Debug for Argument<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Argument")
 			.field("arg", &self.arg.ptr)
@@ -271,38 +305,38 @@ impl fmt::Debug for Argument {
 			.finish()
 	}
 }
-impl Eq for Argument {}
-impl PartialEq<Argument> for Argument {
+impl Eq for Argument<'_> {}
+impl PartialEq<Argument<'_>> for Argument<'_> {
 	fn eq(&self, other: &Argument) -> bool {
 		self.eq(other.utf16_units())
 	}
 }
-impl PartialEq<Argument> for &str {
+impl PartialEq<Argument<'_>> for &str {
 	fn eq(&self, other: &Argument) -> bool {
 		other.eq(self.encode_utf16())
 	}
 }
-impl PartialEq<&str> for Argument {
+impl PartialEq<&str> for Argument<'_> {
 	fn eq(&self, other: &&str) -> bool {
 		self.eq(other.encode_utf16())
 	}
 }
-impl PartialEq<&[u16]> for Argument {
+impl PartialEq<&[u16]> for Argument<'_> {
 	fn eq(&self, other: &&[u16]) -> bool {
 		self.eq(other.iter().copied())
 	}
 }
-impl PartialEq<Argument> for &[u16] {
+impl PartialEq<Argument<'_>> for &[u16] {
 	fn eq(&self, other: &Argument) -> bool {
 		other.eq(self.iter().copied())
 	}
 }
 
 /// An iterator over native command line [`Argument`]s.
-pub struct ArgsNative {
-	next: ParseArgs,
+pub struct ArgsNative<'a> {
+	next: ParseArgs<'a>,
 }
-impl ArgsNative {
+impl ArgsNative<'_> {
 	/// Get the command line arguments from the environment.
 	///
 	/// ```
@@ -313,12 +347,12 @@ impl ArgsNative {
 	///     println!("{}", arg);
 	/// }
 	/// ```
-	pub fn from_env() -> Self {
+	pub fn from_env() -> ArgsNative<'static> {
 		let arg = ParseArgs::from_env();
-		Self { next: arg }
+		ArgsNative { next: arg }
 	}
 }
-impl fmt::Debug for ArgsNative {
+impl fmt::Debug for ArgsNative<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("ArgsNative")
 			.field("next_arg", &self.next.cursor.ptr)
@@ -326,8 +360,8 @@ impl fmt::Debug for ArgsNative {
 			.finish()
 	}
 }
-impl Iterator for ArgsNative {
-	type Item = Argument;
+impl<'a> Iterator for ArgsNative<'a> {
+	type Item = Argument<'a>;
 	fn next(&mut self) -> Option<Self::Item> {
 		let current = Argument {
 			arg: self.next.cursor,
@@ -350,21 +384,25 @@ impl Iterator for ArgsNative {
 ///     println!("{}", arg);
 /// }
 /// ```
-pub fn args_native() -> ArgsNative {
+pub fn args_native<'a>() -> ArgsNative<'a> {
 	ArgsNative::from_env()
 }
 
 /// Simple iterator to encapsulate the unsafety inherent in using a null terminated array without a length.
 #[derive(Copy, Clone, Debug)]
-struct WideIter {
+struct WideIter<'a> {
 	ptr: *const u16,
+	lifetime: PhantomData<&'a [u16]>,
 }
-impl WideIter {
+impl WideIter<'_> {
 	/// # SAFETY
 	/// * `ptr` must point to a NULL terminated `u16` array.
 	/// * The array pointed to by `ptr` must exist for the lifetime of this struct.
 	unsafe fn new(ptr: *const u16) -> Self {
-		Self { ptr }
+		Self {
+			ptr,
+			lifetime: PhantomData,
+		}
 	}
 	fn next(&mut self) -> Option<u16> {
 		// SAFETY: The call to `peek` makes sure we haven't reached the NULL yet.
@@ -408,7 +446,7 @@ impl WideIter {
 	}
 }
 // TODO: Don't implement iterator?
-impl Iterator for WideIter {
+impl Iterator for WideIter<'_> {
 	type Item = u16;
 	fn next(&mut self) -> Option<Self::Item> {
 		self.next()
@@ -481,27 +519,25 @@ impl Iterator for EscapeIter {
 /// This should be considered unstable because it's essentially leaking an
 /// implementation detail.
 #[derive(Clone, Debug)]
-struct ParseArgs {
-	cursor: WideIter,
+struct ParseArgs<'a> {
+	cursor: WideIter<'a>,
 	quote_mode: bool,
 	escape_iter: Option<EscapeIter>,
 	is_arg0: bool,
 }
-impl ParseArgs {
+impl ParseArgs<'_> {
 	/// Creates an `ArgIter` from the environment, starting at the zeroth
 	/// argument.
-	fn from_env() -> Self {
+	fn from_env() -> ParseArgs<'static> {
 		Self::new(command_line(), true)
 	}
-	#[cfg(test)]
-	// For testing only.
-	// SAFETY: `lpwstr` must point to valid null terminated wide string.
-	// It must live at least as long as this struct and must not be modified.
+	/// SAFETY: `lpwstr` must point to valid null terminated wide string.
+	/// It must live at least as long as this struct and must not be modified.
 	unsafe fn from_ptr(lpwstr: *const u16) -> Self {
 		Self::new(WideIter::new(lpwstr), true)
 	}
-	fn new(arg: WideIter, is_arg0: bool) -> Self {
-		Self {
+	fn new(arg: WideIter, is_arg0: bool) -> ParseArgs<'_> {
+		ParseArgs {
 			cursor: arg,
 			quote_mode: false,
 			escape_iter: None,
@@ -516,7 +552,7 @@ impl ParseArgs {
 		self.is_arg0 = false;
 	}
 }
-impl Iterator for ParseArgs {
+impl Iterator for ParseArgs<'_> {
 	type Item = u16;
 	fn next(&mut self) -> Option<Self::Item> {
 		loop {
@@ -584,7 +620,7 @@ fn not(v: bool) -> bool {
 	!v
 }
 
-fn command_line() -> WideIter {
+fn command_line() -> WideIter<'static> {
 	// SAFETY: `GetCommandLineW` returns a 'static null terminated wide string.
 	unsafe { WideIter::new(GetCommandLineW()) }
 }
