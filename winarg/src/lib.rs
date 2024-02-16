@@ -333,7 +333,7 @@ impl Iterator for ArgsNative {
 			arg: self.next.cursor,
 			is_arg0: self.next.is_arg0,
 		};
-		if current.arg.peek() == None {
+		if current.arg.peek().is_none() {
 			None
 		} else {
 			self.next.move_to_next_arg();
@@ -436,7 +436,7 @@ impl EscapeIter {
 				Some(QUOTE) => {
 					// If the counter is odd then output a literal quote instead
 					// of toggling quote mode.
-					if counter.is_odd() {
+					if is_odd(counter) {
 						iter.next();
 						mode = EscapeMode::LiteralQuote;
 					}
@@ -575,14 +575,9 @@ impl Toggle for bool {
 		*self = not(*self)
 	}
 }
-trait OddEven {
-	fn is_odd(self) -> bool;
-}
-impl OddEven for u16 {
-	#[inline(always)]
-	fn is_odd(self) -> bool {
-		self & 1 == 1
-	}
+#[inline(always)]
+fn is_odd(v: u16) -> bool {
+	v & 1 == 1
 }
 #[inline(always)]
 fn not(v: bool) -> bool {
@@ -595,7 +590,7 @@ fn command_line() -> WideIter {
 }
 
 extern "system" {
-	// GetCommandLineW cannot fail. The memory it points to cannot be written
-	// and cannot be freed (i.e. it's 'static).
+	// GetCommandLineW cannot fail. The memory it points to must not be written
+	// and must not be freed (i.e. it's 'static).
 	fn GetCommandLineW() -> *const u16;
 }
