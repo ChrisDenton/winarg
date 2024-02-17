@@ -20,15 +20,6 @@
 //!
 //! # Examples
 //!
-//! Creating a single `String` buffer to hold a list of arguments using [`null_separated_list`]:
-//!
-//! ```
-//! let args: String = winarg::null_separated_list().collect();
-//! for arg in args.split('\0') {
-//!     println!("{}", arg);
-//! }
-//! ```
-//!
 //! Iterating arguments without allocation using [`args_native`]:
 //!
 //! ```
@@ -36,6 +27,15 @@
 //!     if arg == "--help" {
 //!         println!("help me!");
 //!     }
+//! }
+//! ```
+//!
+//! Creating a single `String` buffer to hold a list of arguments using [`null_separated_list`]:
+//!
+//! ```
+//! let args: String = winarg::null_separated_list().collect();
+//! for arg in args.split('\0') {
+//!     println!("{}", arg);
 //! }
 //! ```
 //!
